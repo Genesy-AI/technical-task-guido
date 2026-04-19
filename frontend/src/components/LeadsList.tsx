@@ -446,11 +446,6 @@ const PhoneCell: FC<{
     return (
       <div className="text-sm text-gray-900">
         <a href={`tel:${phone}`} className="text-blue-600 hover:underline">{phone}</a>
-        {provider && (
-          <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
-            via {PROVIDER_LABEL[provider] ?? provider}
-          </span>
-        )}
       </div>
     )
   }
