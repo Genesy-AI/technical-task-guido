@@ -9,6 +9,64 @@ const prisma = new PrismaClient()
 const app = express()
 app.use(express.json())
 
+type LeadFields = {
+  phoneNumber?: string | null
+  yearsAtCompany?: number | null
+  linkedinUrl?: string | null
+}
+
+const PHONE_REGEX = /^\+?[0-9 \-().]{7,20}$/
+
+function parseLeadFields(body: Record<string, unknown>): { data: LeadFields } | { error: string } {
+  const data: LeadFields = {}
+
+  if ('phoneNumber' in body) {
+    const v = body.phoneNumber
+    if (v === null || v === '') {
+      data.phoneNumber = null
+    } else if (typeof v !== 'string') {
+      return { error: 'phoneNumber must be a string' }
+    } else {
+      const trimmed = v.trim()
+      if (!PHONE_REGEX.test(trimmed)) return { error: 'phoneNumber has an invalid format' }
+      data.phoneNumber = trimmed
+    }
+  }
+
+  if ('yearsAtCompany' in body) {
+    const v = body.yearsAtCompany
+    if (v === null || v === '') {
+      data.yearsAtCompany = null
+    } else {
+      const n = typeof v === 'number' ? v : Number(v)
+      if (!Number.isInteger(n) || n < 0 || n > 80) {
+        return { error: 'yearsAtCompany must be an integer between 0 and 80' }
+      }
+      data.yearsAtCompany = n
+    }
+  }
+
+  if ('linkedinUrl' in body) {
+    const v = body.linkedinUrl
+    if (v === null || v === '') {
+      data.linkedinUrl = null
+    } else if (typeof v !== 'string') {
+      return { error: 'linkedinUrl must be a string' }
+    } else {
+      const trimmed = v.trim()
+      try {
+        const url = new URL(trimmed)
+        if (!url.hostname.includes('linkedin.com')) return { error: 'linkedinUrl must be a linkedin.com URL' }
+      } catch {
+        return { error: 'linkedinUrl must be a valid URL' }
+      }
+      data.linkedinUrl = trimmed
+    }
+  }
+
+  return { data }
+}
+
 app.use(function (req, res, next) {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
@@ -29,11 +87,17 @@ app.post('/leads', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'firstName, lastName, and email are required' })
   }
 
+  const parsed = parseLeadFields(req.body)
+  if ('error' in parsed) {
+    return res.status(400).json({ error: parsed.error })
+  }
+
   const lead = await prisma.lead.create({
     data: {
       firstName: String(name),
       lastName: String(lastName),
       email: String(email),
+      ...parsed.data,
     },
   })
   res.json(lead)
@@ -58,14 +122,19 @@ app.get('/leads', async (req: Request, res: Response) => {
 app.patch('/leads/:id', async (req: Request, res: Response) => {
   const { id } = req.params
   const { name, email } = req.body
+
+  const parsed = parseLeadFields(req.body)
+  if ('error' in parsed) {
+    return res.status(400).json({ error: parsed.error })
+  }
+
+  const data: Record<string, unknown> = { ...parsed.data }
+  if (name !== undefined) data.firstName = String(name)
+  if (email !== undefined) data.email = String(email)
+
   const lead = await prisma.lead.update({
-    where: {
-      id: Number(id),
-    },
-    data: {
-      firstName: String(name),
-      email: String(email),
-    },
+    where: { id: Number(id) },
+    data,
   })
   res.json(lead)
 })
@@ -223,10 +292,17 @@ app.post('/leads/bulk', async (req: Request, res: Response) => {
 
     for (const lead of uniqueLeads) {
       try {
+        const parsed = parseLeadFields(lead)
+        if ('error' in parsed) {
+          errors.push({ lead, error: parsed.error })
+          continue
+        }
+
         const sanitizedCountry = sanitizeCountryCode(lead.countryCode)
         if (lead.countryCode && !sanitizedCountry) {
           invalidCountryCodes++
         }
+
         await prisma.lead.create({
           data: {
             firstName: lead.firstName.trim(),
@@ -235,6 +311,7 @@ app.post('/leads/bulk', async (req: Request, res: Response) => {
             jobTitle: lead.jobTitle ? lead.jobTitle.trim() : null,
             countryCode: sanitizedCountry,
             companyName: lead.companyName ? lead.companyName.trim() : null,
+            ...parsed.data,
           },
         })
         importedCount++

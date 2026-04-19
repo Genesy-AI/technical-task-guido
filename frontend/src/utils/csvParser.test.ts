@@ -271,4 +271,66 @@ John,Doe,invalid-email,ZZ`
     expect(result[0].email).toBe('john@example.com')
     expect(result[0].isValid).toBe(true)
   })
+
+  describe('new lead fields', () => {
+    it('parses phoneNumber, yearsAtCompany and linkedinUrl', () => {
+      const csv = `firstName,lastName,email,phoneNumber,yearsAtCompany,linkedinUrl
+Ada,Lovelace,ada@ex.com,+1 555-0100,7,https://www.linkedin.com/in/ada`
+      const [row] = parseCsv(csv)
+      expect(row.phoneNumber).toBe('+1 555-0100')
+      expect(row.yearsAtCompany).toBe(7)
+      expect(row.linkedinUrl).toBe('https://www.linkedin.com/in/ada')
+      expect(row.isValid).toBe(true)
+    })
+
+    it('accepts aliases phone / years / linkedin', () => {
+      const csv = `firstName,lastName,email,phone,years,linkedin
+Ada,Lovelace,ada@ex.com,+15550100,3,https://linkedin.com/in/ada`
+      const [row] = parseCsv(csv)
+      expect(row.phoneNumber).toBe('+15550100')
+      expect(row.yearsAtCompany).toBe(3)
+      expect(row.linkedinUrl).toBe('https://linkedin.com/in/ada')
+    })
+
+    it('drops invalid phone number but keeps lead valid', () => {
+      const csv = `firstName,lastName,email,phoneNumber
+Ada,Lovelace,ada@ex.com,abc`
+      const [row] = parseCsv(csv)
+      expect(row.isValid).toBe(true)
+      expect(row.phoneNumber).toBeUndefined()
+    })
+
+    it('drops non-integer yearsAtCompany but keeps lead valid', () => {
+      const csv = `firstName,lastName,email,yearsAtCompany
+Ada,Lovelace,ada@ex.com,3.5`
+      const [row] = parseCsv(csv)
+      expect(row.isValid).toBe(true)
+      expect(row.yearsAtCompany).toBeUndefined()
+    })
+
+    it('drops out-of-range yearsAtCompany but keeps lead valid', () => {
+      const csv = `firstName,lastName,email,yearsAtCompany
+Ada,Lovelace,ada@ex.com,200`
+      const [row] = parseCsv(csv)
+      expect(row.isValid).toBe(true)
+      expect(row.yearsAtCompany).toBeUndefined()
+    })
+
+    it('drops non-linkedin URL but keeps lead valid', () => {
+      const csv = `firstName,lastName,email,linkedinUrl
+Ada,Lovelace,ada@ex.com,https://example.com/ada`
+      const [row] = parseCsv(csv)
+      expect(row.isValid).toBe(true)
+      expect(row.linkedinUrl).toBeUndefined()
+    })
+
+    it('leaves new fields undefined when columns are absent', () => {
+      const csv = `firstName,lastName,email
+Ada,Lovelace,ada@ex.com`
+      const [row] = parseCsv(csv)
+      expect(row.phoneNumber).toBeUndefined()
+      expect(row.yearsAtCompany).toBeUndefined()
+      expect(row.linkedinUrl).toBeUndefined()
+    })
+  })
 })
