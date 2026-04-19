@@ -13,6 +13,8 @@ export type LeadsGetManyOutput = {
   message: string | null
   emailVerified: boolean | null
   phoneNumber: string | null
+  yearsAtCompany: number | null
+  linkedinUrl: string | null
   phoneEnrichmentStatus: string | null
   phoneEnrichmentProvider: string | null
   phoneEnrichmentUpdatedAt: string | null

@@ -71,6 +71,8 @@ const apiMutationsOptions = (queryClient: QueryClient) =>
             message: null,
             emailVerified: null,
             phoneNumber: null,
+            yearsAtCompany: null,
+            linkedinUrl: null,
             phoneEnrichmentStatus: null,
             phoneEnrichmentProvider: null,
             phoneEnrichmentUpdatedAt: null,

@@ -8,6 +8,9 @@ export interface CsvLead {
   jobTitle?: string
   countryCode?: string
   companyName?: string
+  phoneNumber?: string
+  yearsAtCompany?: number
+  linkedinUrl?: string
   isValid: boolean
   errors: string[]
   warnings: string[]
@@ -17,6 +20,19 @@ export interface CsvLead {
 export const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)
+}
+
+const PHONE_REGEX = /^\+?[0-9 \-().]{7,20}$/
+
+export const isValidPhoneNumber = (phone: string): boolean => PHONE_REGEX.test(phone)
+
+export const isValidLinkedinUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value)
+    return url.hostname.includes('linkedin.com')
+  } catch {
+    return false
+  }
 }
 
 export const parseCsv = (content: string): CsvLead[] => {
@@ -74,6 +90,29 @@ export const parseCsv = (content: string): CsvLead[] => {
           break
         case 'companyname':
           lead.companyName = trimmedValue || undefined
+          break
+        case 'phonenumber':
+        case 'phone':
+          if (trimmedValue && isValidPhoneNumber(trimmedValue)) {
+            lead.phoneNumber = trimmedValue
+          }
+          break
+        case 'yearsatcompany':
+        case 'yearsinrole':
+        case 'years': {
+          if (trimmedValue) {
+            const n = Number(trimmedValue)
+            if (Number.isInteger(n) && n >= 0 && n <= 80) {
+              lead.yearsAtCompany = n
+            }
+          }
+          break
+        }
+        case 'linkedinurl':
+        case 'linkedin':
+          if (trimmedValue && isValidLinkedinUrl(trimmedValue)) {
+            lead.linkedinUrl = trimmedValue
+          }
           break
       }
     })

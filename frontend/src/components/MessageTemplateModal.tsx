@@ -106,7 +106,17 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
     }
   }, [isOpen, handleClose])
 
-  const availableFields = ['firstName', 'lastName', 'email', 'jobTitle', 'companyName', 'countryCode']
+  const availableFields = [
+    'firstName',
+    'lastName',
+    'email',
+    'jobTitle',
+    'companyName',
+    'countryCode',
+    'phoneNumber',
+    'yearsAtCompany',
+    'linkedinUrl',
+  ]
 
   const insertField = (field: string) => {
     if (textareaRef.current) {
@@ -131,7 +141,7 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
       onClick={handleBackdropClick}
     >
       <div
-        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
@@ -152,32 +162,38 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="message-template" className="block text-sm font-medium text-gray-700 mb-2">
-                Message Template
-              </label>
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-sm text-gray-600">Insert field:</span>
-                  {availableFields.map((field) => (
-                    <button
-                      key={field}
-                      type="button"
-                      onClick={() => insertField(field)}
-                      className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
-                    >
-                      {`{${field}}`}
-                    </button>
-                  ))}
+              <div className="grid grid-cols-1 md:grid-cols-[12rem_1fr] gap-4">
+                <div className="flex flex-col border border-gray-200 rounded-md bg-gray-50 overflow-hidden h-64 md:mt-7">
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wide border-b border-gray-200 bg-white">
+                    Insert field
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    {availableFields.map((field) => (
+                      <button
+                        key={field}
+                        type="button"
+                        onClick={() => insertField(field)}
+                        className="w-full text-left px-2 py-1.5 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors font-mono"
+                      >
+                        {`{${field}}`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <textarea
-                  ref={textareaRef}
-                  id="message-template"
-                  value={template}
-                  onChange={(e) => setTemplate(e.target.value)}
-                  placeholder="Enter your message template here. Use {fieldName} to insert dynamic values.&#10;&#10;Example: Hi {firstName}, I noticed you work at {companyName} as a {jobTitle}. Would you be interested in..."
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                  required
-                />
+                <div className="flex flex-col">
+                  <label htmlFor="message-template" className="block text-sm font-medium text-gray-700 mb-2">
+                    Message Template
+                  </label>
+                  <textarea
+                    ref={textareaRef}
+                    id="message-template"
+                    value={template}
+                    onChange={(e) => setTemplate(e.target.value)}
+                    placeholder="Enter your message template here. Use {fieldName} to insert dynamic values.&#10;&#10;Example: Hi {firstName}, I noticed you work at {companyName} as a {jobTitle}. Would you be interested in..."
+                    className="w-full h-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    required
+                  />
+                </div>
               </div>
               <p className="mt-2 text-sm text-gray-500">
                 Use curly braces around field names (e.g., {`{firstName}`}) to insert dynamic values. If a
