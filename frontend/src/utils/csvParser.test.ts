@@ -66,6 +66,7 @@ John,Doe,john.doe@example.com,Developer,US,Tech Corp`
       companyName: 'Tech Corp',
       isValid: true,
       errors: [],
+      warnings: [],
       rowIndex: 2,
     })
   })
@@ -209,6 +210,53 @@ Jane,Johnson,jane@example.com`
     expect(result[1].errors).toContain('First name is required')
     expect(result[1].errors).toContain('Invalid email format')
     expect(result[2].isValid).toBe(true)
+  })
+
+  describe('countryCode validation', () => {
+    it('accepts valid ISO alpha-2 codes and normalizes to uppercase', () => {
+      const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,us
+Jane,Smith,jane@example.com,  ar  `
+      const result = parseCsv(csv)
+      expect(result[0].countryCode).toBe('US')
+      expect(result[0].warnings).toEqual([])
+      expect(result[0].isValid).toBe(true)
+      expect(result[1].countryCode).toBe('AR')
+      expect(result[1].warnings).toEqual([])
+    })
+
+    it('drops invalid country codes and adds a warning without marking lead invalid', () => {
+      const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,XXX
+Jane,Smith,jane@example.com,garbage!
+Bob,Jones,bob@example.com,USA`
+      const result = parseCsv(csv)
+      result.forEach((lead) => {
+        expect(lead.countryCode).toBeUndefined()
+        expect(lead.isValid).toBe(true)
+        expect(lead.errors).toEqual([])
+        expect(lead.warnings.length).toBe(1)
+        expect(lead.warnings[0]).toMatch(/Invalid country code/)
+      })
+    })
+
+    it('leaves empty country codes untouched and emits no warning', () => {
+      const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,`
+      const result = parseCsv(csv)
+      expect(result[0].countryCode).toBeUndefined()
+      expect(result[0].warnings).toEqual([])
+      expect(result[0].isValid).toBe(true)
+    })
+
+    it('keeps email errors independent from country warnings', () => {
+      const csv = `firstName,lastName,email,countryCode
+John,Doe,invalid-email,ZZ`
+      const result = parseCsv(csv)
+      expect(result[0].isValid).toBe(false)
+      expect(result[0].errors).toContain('Invalid email format')
+      expect(result[0].warnings.length).toBe(1)
+    })
   })
 
   it('should handle whitespace in fields', () => {
