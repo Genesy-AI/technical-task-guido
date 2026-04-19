@@ -276,37 +276,44 @@ app.post('/leads/verify-emails', async (req: Request, res: Response) => {
     const connection = await Connection.connect({ address: 'localhost:7233' })
     const client = new Client({ connection, namespace: 'default' })
 
-    let verifiedCount = 0
     const results: Array<{ leadId: number; emailVerified: boolean }> = []
     const errors: Array<{ leadId: number; leadName: string; error: string }> = []
 
-    for (const lead of leads) {
-      try {
-        const isVerified = await client.workflow.execute(verifyEmailWorkflow, {
-          taskQueue: 'myQueue',
-          workflowId: `verify-email-${lead.id}-${Date.now()}`,
-          args: [lead.email],
-        })
+    const settlements = await Promise.allSettled(
+      leads.map(async (lead) => {
+        const isVerified = Boolean(
+          await client.workflow.execute(verifyEmailWorkflow, {
+            taskQueue: 'myQueue',
+            workflowId: `verify-email-${lead.id}-${Date.now()}`,
+            args: [lead.email],
+          }),
+        )
 
         await prisma.lead.update({
           where: { id: lead.id },
-          data: { emailVerified: Boolean(isVerified) },
+          data: { emailVerified: isVerified },
         })
 
-        results.push({ leadId: lead.id, emailVerified: isVerified })
-        verifiedCount += 1
-      } catch (error) {
-        errors.push({
-          leadId: lead.id,
-          leadName: `${lead.firstName} ${lead.lastName}`.trim(),
-          error: error instanceof Error ? error.message : 'Unknown error',
-        })
+        return { leadId: lead.id, emailVerified: isVerified }
+      }),
+    )
+
+    settlements.forEach((settlement, index) => {
+      if (settlement.status === 'fulfilled') {
+        results.push(settlement.value)
+        return
       }
-    }
+      const lead = leads[index]
+      errors.push({
+        leadId: lead.id,
+        leadName: `${lead.firstName} ${lead.lastName}`.trim(),
+        error: settlement.reason instanceof Error ? settlement.reason.message : 'Unknown error',
+      })
+    })
 
     await connection.close()
 
-    res.json({ success: true, verifiedCount, results, errors })
+    res.json({ success: true, verifiedCount: results.length, results, errors })
   } catch (error) {
     console.error('Error verifying emails:', error)
     res.status(500).json({ error: 'Failed to verify emails' })
