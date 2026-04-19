@@ -8,13 +8,7 @@ export type LeadsEnrichPhoneOutput = {
 
 export type LeadsEnrichPhoneStatusInput = { id: number }
 
-export type EnrichmentStatus =
-  | 'in_progress'
-  | 'querying_orion'
-  | 'querying_nimbus'
-  | 'querying_astra'
-  | 'found'
-  | 'no_data'
+export type EnrichmentStatus = 'in_progress' | 'found' | 'no_data'
 
 export type LeadsEnrichPhoneStatusOutput = {
   phoneNumber: string | null
