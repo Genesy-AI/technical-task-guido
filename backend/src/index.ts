@@ -8,6 +8,55 @@ const prisma = new PrismaClient()
 const app = express()
 app.use(express.json())
 
+type OptionalFieldsInput = {
+  phoneNumber?: unknown
+  yearsAtCompany?: unknown
+  linkedinUrl?: unknown
+}
+
+type OptionalFields = {
+  phoneNumber: string | null
+  yearsAtCompany: number | null
+  linkedinUrl: string | null
+}
+
+const PHONE_REGEX = /^\+?[0-9 \-().]{7,20}$/
+
+function parseOptionalFields(input: OptionalFieldsInput): { data: OptionalFields; error?: string } {
+  const result: OptionalFields = { phoneNumber: null, yearsAtCompany: null, linkedinUrl: null }
+
+  if (input.phoneNumber !== undefined && input.phoneNumber !== null && input.phoneNumber !== '') {
+    if (typeof input.phoneNumber !== 'string') return { data: result, error: 'phoneNumber must be a string' }
+    const trimmed = input.phoneNumber.trim()
+    if (!PHONE_REGEX.test(trimmed)) return { data: result, error: 'phoneNumber has an invalid format' }
+    result.phoneNumber = trimmed
+  }
+
+  if (input.yearsAtCompany !== undefined && input.yearsAtCompany !== null && input.yearsAtCompany !== '') {
+    const n = typeof input.yearsAtCompany === 'number' ? input.yearsAtCompany : Number(input.yearsAtCompany)
+    if (!Number.isInteger(n) || n < 0 || n > 80) {
+      return { data: result, error: 'yearsAtCompany must be an integer between 0 and 80' }
+    }
+    result.yearsAtCompany = n
+  }
+
+  if (input.linkedinUrl !== undefined && input.linkedinUrl !== null && input.linkedinUrl !== '') {
+    if (typeof input.linkedinUrl !== 'string') return { data: result, error: 'linkedinUrl must be a string' }
+    const trimmed = input.linkedinUrl.trim()
+    try {
+      const url = new URL(trimmed)
+      if (!url.hostname.includes('linkedin.com')) {
+        return { data: result, error: 'linkedinUrl must be a linkedin.com URL' }
+      }
+    } catch {
+      return { data: result, error: 'linkedinUrl must be a valid URL' }
+    }
+    result.linkedinUrl = trimmed
+  }
+
+  return { data: result }
+}
+
 app.use(function (req, res, next) {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
@@ -28,11 +77,17 @@ app.post('/leads', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'firstName, lastName, and email are required' })
   }
 
+  const optional = parseOptionalFields(req.body)
+  if (optional.error) {
+    return res.status(400).json({ error: optional.error })
+  }
+
   const lead = await prisma.lead.create({
     data: {
       firstName: String(name),
       lastName: String(lastName),
       email: String(email),
+      ...optional.data,
     },
   })
   res.json(lead)
@@ -57,14 +112,22 @@ app.get('/leads', async (req: Request, res: Response) => {
 app.patch('/leads/:id', async (req: Request, res: Response) => {
   const { id } = req.params
   const { name, email } = req.body
+
+  const optional = parseOptionalFields(req.body)
+  if (optional.error) {
+    return res.status(400).json({ error: optional.error })
+  }
+
+  const data: Record<string, unknown> = {}
+  if (name !== undefined) data.firstName = String(name)
+  if (email !== undefined) data.email = String(email)
+  if (req.body.phoneNumber !== undefined) data.phoneNumber = optional.data.phoneNumber
+  if (req.body.yearsAtCompany !== undefined) data.yearsAtCompany = optional.data.yearsAtCompany
+  if (req.body.linkedinUrl !== undefined) data.linkedinUrl = optional.data.linkedinUrl
+
   const lead = await prisma.lead.update({
-    where: {
-      id: Number(id),
-    },
-    data: {
-      firstName: String(name),
-      email: String(email),
-    },
+    where: { id: Number(id) },
+    data,
   })
   res.json(lead)
 })
@@ -221,6 +284,12 @@ app.post('/leads/bulk', async (req: Request, res: Response) => {
 
     for (const lead of uniqueLeads) {
       try {
+        const optional = parseOptionalFields(lead)
+        if (optional.error) {
+          errors.push({ lead, error: optional.error })
+          continue
+        }
+
         await prisma.lead.create({
           data: {
             firstName: lead.firstName.trim(),
@@ -229,6 +298,7 @@ app.post('/leads/bulk', async (req: Request, res: Response) => {
             jobTitle: lead.jobTitle ? lead.jobTitle.trim() : null,
             countryCode: lead.countryCode ? lead.countryCode.trim() : null,
             companyName: lead.companyName ? lead.companyName.trim() : null,
+            ...optional.data,
           },
         })
         importedCount++
