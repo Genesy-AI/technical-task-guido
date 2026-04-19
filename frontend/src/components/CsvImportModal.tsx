@@ -34,11 +34,14 @@ export const CsvImportModal: FC<CsvImportModalProps> = ({ isOpen, onClose }) => 
       .filter((group) => group.length > 1)
       .flat()
 
+    const withWarnings = csvData.filter((lead) => lead.warnings.length > 0).length
+
     return {
       total: csvData.length,
       valid: validLeads.length,
       invalid: invalidLeads.length,
       duplicatesInCsv: duplicatesInCsv.length,
+      withWarnings,
     }
   }, [csvData])
 
@@ -287,31 +290,44 @@ export const CsvImportModal: FC<CsvImportModalProps> = ({ isOpen, onClose }) => 
                       <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                         Errors
                       </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Warnings
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {csvData.map((lead, index) => (
-                      <tr key={index} className={lead.isValid ? 'bg-white' : 'bg-red-50'}>
-                        <td className="px-3 py-2 text-sm text-gray-900">{lead.rowIndex - 1}</td>
-                        <td className="px-3 py-2">
-                          {lead.isValid ? (
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">
-                              Valid
-                            </span>
-                          ) : (
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">
-                              Invalid
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-sm text-gray-900">
-                          {lead.firstName} {lead.lastName || ''}
-                        </td>
-                        <td className="px-3 py-2 text-sm text-gray-900">{lead.email || '-'}</td>
-                        <td className="px-3 py-2 text-sm text-gray-900">{lead.companyName || '-'}</td>
-                        <td className="px-3 py-2 text-sm text-red-600">{lead.errors.join(', ') || '-'}</td>
-                      </tr>
-                    ))}
+                    {csvData.map((lead, index) => {
+                      const rowBg = !lead.isValid
+                        ? 'bg-red-50'
+                        : lead.warnings.length > 0
+                          ? 'bg-yellow-50'
+                          : 'bg-white'
+                      return (
+                        <tr key={index} className={rowBg}>
+                          <td className="px-3 py-2 text-sm text-gray-900">{lead.rowIndex - 1}</td>
+                          <td className="px-3 py-2">
+                            {lead.isValid ? (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">
+                                Valid
+                              </span>
+                            ) : (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">
+                                Invalid
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-900">
+                            {lead.firstName} {lead.lastName || ''}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-900">{lead.email || '-'}</td>
+                          <td className="px-3 py-2 text-sm text-gray-900">{lead.companyName || '-'}</td>
+                          <td className="px-3 py-2 text-sm text-red-600">{lead.errors.join(', ') || '-'}</td>
+                          <td className="px-3 py-2 text-sm text-yellow-700">
+                            {lead.warnings.join(', ') || '-'}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

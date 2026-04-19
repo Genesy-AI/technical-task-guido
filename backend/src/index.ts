@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express'
 import { Connection, Client } from '@temporalio/client'
 import { verifyEmailWorkflow } from './workflows'
 import { generateMessageFromTemplate } from './utils/messageGenerator'
+import { sanitizeCountryCode } from './utils/countryCode'
 import { runTemporalWorker } from './worker'
 const prisma = new PrismaClient()
 const app = express()
@@ -217,17 +218,22 @@ app.post('/leads/bulk', async (req: Request, res: Response) => {
     })
 
     let importedCount = 0
+    let invalidCountryCodes = 0
     const errors: Array<{ lead: any; error: string }> = []
 
     for (const lead of uniqueLeads) {
       try {
+        const sanitizedCountry = sanitizeCountryCode(lead.countryCode)
+        if (lead.countryCode && !sanitizedCountry) {
+          invalidCountryCodes++
+        }
         await prisma.lead.create({
           data: {
             firstName: lead.firstName.trim(),
             lastName: lead.lastName.trim(),
             email: lead.email.trim(),
             jobTitle: lead.jobTitle ? lead.jobTitle.trim() : null,
-            countryCode: lead.countryCode ? lead.countryCode.trim() : null,
+            countryCode: sanitizedCountry,
             companyName: lead.companyName ? lead.companyName.trim() : null,
           },
         })
@@ -245,6 +251,7 @@ app.post('/leads/bulk', async (req: Request, res: Response) => {
       importedCount,
       duplicatesSkipped: validLeads.length - uniqueLeads.length,
       invalidLeads: leads.length - validLeads.length,
+      invalidCountryCodes,
       errors,
     })
   } catch (error) {
