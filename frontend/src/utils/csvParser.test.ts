@@ -244,35 +244,36 @@ Ada,Lovelace,ada@ex.com,+15550100,3,https://linkedin.com/in/ada`
       expect(row.linkedinUrl).toBe('https://linkedin.com/in/ada')
     })
 
-    it('flags invalid phone number', () => {
+    it('drops invalid phone number but keeps lead valid', () => {
       const csv = `firstName,lastName,email,phoneNumber
 Ada,Lovelace,ada@ex.com,abc`
       const [row] = parseCsv(csv)
-      expect(row.isValid).toBe(false)
-      expect(row.errors).toContain('Invalid phone number format')
+      expect(row.isValid).toBe(true)
+      expect(row.phoneNumber).toBeUndefined()
     })
 
-    it('flags non-integer yearsAtCompany', () => {
+    it('drops non-integer yearsAtCompany but keeps lead valid', () => {
       const csv = `firstName,lastName,email,yearsAtCompany
 Ada,Lovelace,ada@ex.com,3.5`
       const [row] = parseCsv(csv)
-      expect(row.isValid).toBe(false)
-      expect(row.errors[0]).toMatch(/yearsAtCompany/)
+      expect(row.isValid).toBe(true)
+      expect(row.yearsAtCompany).toBeUndefined()
     })
 
-    it('flags out-of-range yearsAtCompany', () => {
+    it('drops out-of-range yearsAtCompany but keeps lead valid', () => {
       const csv = `firstName,lastName,email,yearsAtCompany
 Ada,Lovelace,ada@ex.com,200`
       const [row] = parseCsv(csv)
-      expect(row.isValid).toBe(false)
+      expect(row.isValid).toBe(true)
+      expect(row.yearsAtCompany).toBeUndefined()
     })
 
-    it('flags non-linkedin URL', () => {
+    it('drops non-linkedin URL but keeps lead valid', () => {
       const csv = `firstName,lastName,email,linkedinUrl
 Ada,Lovelace,ada@ex.com,https://example.com/ada`
       const [row] = parseCsv(csv)
-      expect(row.isValid).toBe(false)
-      expect(row.errors[0]).toMatch(/linkedin/i)
+      expect(row.isValid).toBe(true)
+      expect(row.linkedinUrl).toBeUndefined()
     })
 
     it('leaves new fields undefined when columns are absent', () => {

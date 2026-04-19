@@ -65,7 +65,6 @@ export const parseCsv = (content: string): CsvLead[] => {
     if (Object.values(row).every((value) => !value)) return
 
     const lead: Partial<CsvLead> = { rowIndex: index + 2 }
-    const fieldErrors: string[] = []
 
     Object.entries(row).forEach(([header, value]) => {
       const normalizedHeader = header.toLowerCase().replace(/[^a-z]/g, '')
@@ -92,21 +91,16 @@ export const parseCsv = (content: string): CsvLead[] => {
           break
         case 'phonenumber':
         case 'phone':
-          if (trimmedValue) {
-            if (!isValidPhoneNumber(trimmedValue)) {
-              fieldErrors.push('Invalid phone number format')
-            } else {
-              lead.phoneNumber = trimmedValue
-            }
+          if (trimmedValue && isValidPhoneNumber(trimmedValue)) {
+            lead.phoneNumber = trimmedValue
           }
           break
         case 'yearsatcompany':
+        case 'yearsinrole':
         case 'years': {
           if (trimmedValue) {
             const n = Number(trimmedValue)
-            if (!Number.isInteger(n) || n < 0 || n > 80) {
-              fieldErrors.push('yearsAtCompany must be an integer between 0 and 80')
-            } else {
+            if (Number.isInteger(n) && n >= 0 && n <= 80) {
               lead.yearsAtCompany = n
             }
           }
@@ -114,18 +108,14 @@ export const parseCsv = (content: string): CsvLead[] => {
         }
         case 'linkedinurl':
         case 'linkedin':
-          if (trimmedValue) {
-            if (!isValidLinkedinUrl(trimmedValue)) {
-              fieldErrors.push('linkedinUrl must be a valid linkedin.com URL')
-            } else {
-              lead.linkedinUrl = trimmedValue
-            }
+          if (trimmedValue && isValidLinkedinUrl(trimmedValue)) {
+            lead.linkedinUrl = trimmedValue
           }
           break
       }
     })
 
-    const errors: string[] = [...fieldErrors]
+    const errors: string[] = []
     if (!lead.firstName?.trim()) {
       errors.push('First name is required')
     }
