@@ -1,11 +1,10 @@
-import { PrismaClient } from '@prisma/client'
 import express, { Request, Response } from 'express'
-import { Connection, Client } from '@temporalio/client'
-import { verifyEmailWorkflow } from './workflows'
+import { Connection, Client, WorkflowExecutionAlreadyStartedError } from '@temporalio/client'
+import { verifyEmailWorkflow, enrichPhoneWorkflow, type EnrichPhoneInput } from './workflows'
 import { generateMessageFromTemplate } from './utils/messageGenerator'
 import { sanitizeCountryCode } from './utils/countryCode'
 import { runTemporalWorker } from './worker'
-const prisma = new PrismaClient()
+import { prisma } from './prisma'
 const app = express()
 app.use(express.json())
 
@@ -402,6 +401,72 @@ app.post('/leads/verify-emails', async (req: Request, res: Response) => {
     console.error('Error verifying emails:', error)
     res.status(500).json({ error: 'Failed to verify emails' })
   }
+})
+
+function buildEnrichInput(lead: {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+  jobTitle: string | null
+  companyName: string | null
+}): EnrichPhoneInput {
+  return {
+    leadId: lead.id,
+    fullName: `${lead.firstName} ${lead.lastName}`.trim(),
+    email: lead.email,
+    jobTitle: lead.jobTitle,
+    companyName: lead.companyName,
+    // TODO: lead has no website field; fall back to companyName for now
+    companyWebsite: lead.companyName,
+  }
+}
+
+app.post('/leads/:id/enrich-phone', async (req: Request, res: Response) => {
+  const id = Number(req.params.id)
+  const lead = await prisma.lead.findUnique({ where: { id } })
+  if (!lead) return res.status(404).json({ error: 'Lead not found' })
+
+  const connection = await Connection.connect({ address: 'localhost:7233' })
+  const client = new Client({ connection, namespace: 'default' })
+  const workflowId = `enrich-phone-${id}`
+
+  try {
+    const handle = await client.workflow.start(enrichPhoneWorkflow, {
+      taskQueue: 'myQueue',
+      workflowId,
+      workflowIdReusePolicy: 'REJECT_DUPLICATE',
+      args: [buildEnrichInput(lead)],
+    })
+    await prisma.lead.update({
+      where: { id },
+      data: { phoneEnrichmentStatus: 'in_progress', phoneEnrichmentUpdatedAt: new Date() },
+    })
+    res.json({ workflowId: handle.workflowId, runId: handle.firstExecutionRunId, status: 'in_progress' })
+  } catch (err) {
+    if (err instanceof WorkflowExecutionAlreadyStartedError) {
+      return res.status(409).json({ error: 'Enrichment already running', workflowId })
+    }
+    console.error('Error starting enrich-phone workflow:', err)
+    res.status(500).json({ error: 'Failed to start enrichment' })
+  } finally {
+    await connection.close()
+  }
+})
+
+app.get('/leads/:id/enrich-phone/status', async (req: Request, res: Response) => {
+  const id = Number(req.params.id)
+  const lead = await prisma.lead.findUnique({
+    where: { id },
+    select: {
+      phoneNumber: true,
+      phoneEnrichmentStatus: true,
+      phoneEnrichmentProvider: true,
+      phoneEnrichmentUpdatedAt: true,
+    },
+  })
+  if (!lead) return res.status(404).json({ error: 'Lead not found' })
+  res.json(lead)
 })
 
 app.listen(4000, () => {

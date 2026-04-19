@@ -16,8 +16,40 @@ export const LeadsList: FC = () => {
     queryKey: ['leads', 'getMany'],
     queryFn: async () => api.leads.getMany(),
     retry: false,
+    refetchInterval: (query) => {
+      const data = query.state.data as { phoneEnrichmentStatus: string | null }[] | undefined
+      const inProgress = data?.some((l) => l.phoneEnrichmentStatus === 'in_progress')
+      return inProgress ? 1500 : false
+    },
   })
-  
+
+  const enrichPhonesMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const settled = await Promise.allSettled(ids.map((id) => api.leads.enrichPhone({ id })))
+      return {
+        started: settled.filter((s) => s.status === 'fulfilled').length,
+        alreadyRunning: settled.filter(
+          (s) => s.status === 'rejected' && (s.reason as { response?: { status?: number } })?.response?.status === 409
+        ).length,
+        failed: settled.filter(
+          (s) => s.status === 'rejected' && (s.reason as { response?: { status?: number } })?.response?.status !== 409
+        ).length,
+      }
+    },
+    onSuccess: ({ started, alreadyRunning, failed }) => {
+      queryClient.invalidateQueries({ queryKey: ['leads', 'getMany'] })
+      setIsEnrichDropdownOpen(false)
+      const parts: string[] = []
+      if (started) parts.push(`${started} started`)
+      if (alreadyRunning) parts.push(`${alreadyRunning} already running`)
+      if (failed) parts.push(`${failed} failed`)
+      toast.success(`Enrich phone: ${parts.join(', ')}`)
+    },
+    onError: () => {
+      toast.error('Failed to start phone enrichment')
+    },
+  })
+
 
   const deleteLeadsMutation = useMutation({
     mutationFn: async (ids: number[]) => api.leads.deleteMany({ ids }),
@@ -159,6 +191,17 @@ export const LeadsList: FC = () => {
                       </div>
                     </button>
                     <button
+                      onClick={() => enrichPhonesMutation.mutate(selectedLeads)}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="flex items-center">
+                        <svg className="mr-3 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h2.28a1 1 0 01.95.68l1.5 4.49a1 1 0 01-.5 1.21l-2.26 1.13a11.04 11.04 0 005.52 5.52l1.13-2.26a1 1 0 011.21-.5l4.49 1.5a1 1 0 01.68.95V19a2 2 0 01-2 2h-1C9.72 21 3 14.28 3 6V5z" />
+                        </svg>
+                        Enrich Phone
+                      </div>
+                    </button>
+                    <button
                       onClick={() => {
                         toast.error('Gender guessing feature is not yet implemented')
                         setIsEnrichDropdownOpen(false)
@@ -285,15 +328,10 @@ export const LeadsList: FC = () => {
                     <div className="text-sm text-gray-900">{lead.countryCode || '-'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {lead.phoneNumber ? (
-                        <a href={`tel:${lead.phoneNumber}`} className="text-blue-600 hover:underline">
-                          {lead.phoneNumber}
-                        </a>
-                      ) : (
-                        '-'
-                      )}
-                    </div>
+                    <PhoneCell
+                      phone={lead.phoneNumber}
+                      status={lead.phoneEnrichmentStatus}
+                    />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="text-sm text-gray-900">
@@ -373,4 +411,32 @@ export const LeadsList: FC = () => {
       />
     </div>
   )
+}
+
+const PhoneCell: FC<{
+  phone: string | null
+  status: string | null
+}> = ({ phone, status }) => {
+  if (status === 'in_progress') {
+    return (
+      <div className="flex items-center text-sm text-gray-600">
+        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        Enriching…
+      </div>
+    )
+  }
+  if (phone) {
+    return (
+      <div className="text-sm text-gray-900">
+        <a href={`tel:${phone}`} className="text-blue-600 hover:underline">{phone}</a>
+      </div>
+    )
+  }
+  if (status === 'no_data') {
+    return <div className="text-sm text-gray-400 italic">No data found</div>
+  }
+  return <div className="text-sm text-gray-400">—</div>
 }
