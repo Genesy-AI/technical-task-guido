@@ -2,6 +2,10 @@
   <img src="./enginy_brand_filled.svg" width="256" height="128" alt="Enginy logo">
 </p>
 
+> **Completed on Sunday, April 19.**
+>
+> See the solution at: [enginy.turnesg.com](https://enginy.turnesg.com)
+
 ## Overview
 
 Welcome to the **TinyEnginy** take‑home! This exercise is a condensed version of our product and day‑to‑day work. Please treat the codebase as if it were the one you ship to production.
